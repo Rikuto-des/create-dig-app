@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { Button, DataTable, Loading, PageLayout, SideBar } from "../../components";
-import { getComponentList, getColorTokens } from "../../utils/componentRegistry";
+import { getComponentList, getColorTokens, componentDocs, type ComponentInfo } from "../../utils/componentRegistry";
 
 const sampleColumns = [
   { key: "name", label: "名前" },
@@ -25,29 +25,53 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
+function PropsTable({ component }: { component: ComponentInfo }) {
+  if (!component.props || component.props.length === 0) return null;
+  return (
+    <div className="mt-4 overflow-x-auto rounded border border-border">
+      <table className="w-full text-sm">
+        <thead className="bg-gray-50 text-left text-xs text-gray-500">
+          <tr>
+            <th className="px-3 py-2 font-medium">Prop</th>
+            <th className="px-3 py-2 font-medium">型</th>
+            <th className="px-3 py-2 font-medium">必須</th>
+            <th className="px-3 py-2 font-medium">デフォルト</th>
+            <th className="px-3 py-2 font-medium">説明</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {component.props.map((prop) => (
+            <tr key={prop.name} className="bg-white hover:bg-gray-50">
+              <td className="px-3 py-2 font-mono font-semibold text-primary-700">{prop.name}</td>
+              <td className="px-3 py-2 font-mono text-xs text-gray-600">{prop.type}</td>
+              <td className="px-3 py-2">
+                {prop.required
+                  ? <span className="rounded bg-error px-1.5 py-0.5 text-xs text-white">必須</span>
+                  : <span className="text-gray-400">-</span>}
+              </td>
+              <td className="px-3 py-2 font-mono text-xs text-gray-500">{prop.defaultValue ?? "-"}</td>
+              <td className="px-3 py-2 text-gray-600">{prop.description}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export function Playground() {
   const [colorTokens, setColorTokens] = useState(getColorTokens());
-  const [components, setComponents] = useState<string[]>([]);
+  const [detectedComponents, setDetectedComponents] = useState<string[]>([]);
+  const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
 
-  // コンポーネントリストとカラートークンを取得
   useEffect(() => {
-    const loadComponents = async () => {
-      const componentList = await getComponentList();
-      setComponents(componentList.map(c => c.name));
-    };
-    
-    loadComponents();
-    
-    // カラートークンの変更を監視（将来的には tailwind.config.ts の監視）
-    const checkColorTokens = () => {
-      setColorTokens(getColorTokens());
-    };
-    
-    // 5秒ごとにチェック（開発用）
+    const list = getComponentList();
+    setDetectedComponents(list.map(c => c.name));
+
     const interval = setInterval(() => {
-      checkColorTokens();
+      setColorTokens(getColorTokens());
     }, 5000);
-    
+
     return () => clearInterval(interval);
   }, []);
 
@@ -57,18 +81,32 @@ export function Playground() {
       <Section title="Component Overview">
         <div className="bg-gray-50 p-4 rounded">
           <p className="text-sm text-gray-600 mb-2">
-            検出されたコンポーネント: {components.length} 個
+            検出されたコンポーネント: {detectedComponents.length} 個
           </p>
           <div className="flex flex-wrap gap-2">
-            {components.map((component) => (
-              <span 
-                key={component}
-                className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm"
+            {detectedComponents.map((name) => (
+              <button
+                key={name}
+                onClick={() => setSelectedComponent(selectedComponent === name ? null : name)}
+                className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                  selectedComponent === name
+                    ? "bg-primary-500 text-white border-primary-500"
+                    : "bg-primary-100 text-primary-800 border-primary-200 hover:bg-primary-200"
+                }`}
               >
-                {component}
-              </span>
+                {name}
+              </button>
             ))}
           </div>
+          {selectedComponent && componentDocs[selectedComponent] && (
+            <div className="mt-4">
+              <p className="text-sm text-gray-700 mb-2">
+                <span className="font-semibold">{selectedComponent}</span>:{" "}
+                {componentDocs[selectedComponent].description}
+              </p>
+              <PropsTable component={componentDocs[selectedComponent]} />
+            </div>
+          )}
         </div>
       </Section>
 
