@@ -1,6 +1,6 @@
 {
   "name": "create-dig-app",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "AI デザインワークフロー対応の React + Tailwind プロジェクトを対話式で作成する CLI ツール",
   "type": "module",
   "bin": {

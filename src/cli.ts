@@ -334,7 +334,196 @@ async function getAllFiles(dir: string): Promise<string[]> {
   return files;
 }
 
-main().catch((err) => {
-  console.error(chalk.red("エラーが発生しました:"), err);
-  process.exit(1);
-});
+// ─────────────────────────────────────────────
+// migrate コマンド
+// ─────────────────────────────────────────────
+
+/** template 側の既知コンポーネントとそのレイヤー */
+const BUILTIN_COMPONENTS: Record<string, string> = {
+  Button: "atoms",
+  Loading: "atoms",
+  DataTable: "organisms",
+  SideBar: "organisms",
+  PageLayout: "templates",
+};
+
+async function migrate() {
+  console.log(chalk.cyan("\n🔄 create-dig-app migrate\n"));
+
+  // 1. 実行場所を特定（frontend/ 直下 or プロジェクトルート/frontend/）
+  let frontendDir = process.cwd();
+
+  if (!await fs.pathExists(path.join(frontendDir, "AGENT.md"))) {
+    const candidate = path.join(frontendDir, "frontend");
+    if (await fs.pathExists(path.join(candidate, "AGENT.md"))) {
+      frontendDir = candidate;
+    } else {
+      console.log(chalk.red("エラー: create-dig-app プロジェクトが見つかりません。"));
+      console.log(chalk.dim("  frontend/ ディレクトリ内か、プロジェクトルートで実行してください。\n"));
+      process.exit(1);
+    }
+  }
+
+  console.log(chalk.dim(`  対象: ${frontendDir}\n`));
+
+  // 2. ユーザーのカスタムコンポーネントを検出
+  const componentsDir = path.join(frontendDir, "src", "components");
+  const customComponents: string[] = [];
+
+  if (await fs.pathExists(componentsDir)) {
+    const entries = await fs.readdir(componentsDir, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.isFile() && entry.name.endsWith(".tsx")) {
+        const name = entry.name.replace(".tsx", "");
+        if (name !== "index" && !BUILTIN_COMPONENTS[name]) {
+          customComponents.push(name);
+        }
+      }
+    }
+  }
+
+  // 3. 変更内容を表示
+  console.log(chalk.yellow("📋 以下を更新します:"));
+  console.log(chalk.dim("  ✓ src/components/ → atoms/molecules/organisms/templates/ 構造に再編"));
+  console.log(chalk.dim("  ✓ src/utils/componentRegistry.ts（レイヤー対応版に更新）"));
+  console.log(chalk.dim("  ✓ src/pages/Playground/Playground.tsx（レイヤー別表示に更新）"));
+  console.log(chalk.dim("  ✓ scripts/generate-handoff.js, figma-sync.js（追加/更新）"));
+  console.log(chalk.dim("  ✓ AGENT.md（アトミックデザインセクションを追記）"));
+
+  if (customComponents.length > 0) {
+    console.log(chalk.yellow(`\n⚠️  カスタムコンポーネントが見つかりました: ${customComponents.join(", ")}`));
+    console.log(chalk.dim("  → molecules/ に仮配置します。後で適切なレイヤーに移動してください。"));
+  }
+
+  console.log(chalk.dim("\n  ⚠️  変更しないもの: tailwind.config.ts / docs/ / src/mocks/ / src/pages/ (Playground以外)\n"));
+
+  // 4. 確認
+  const { confirmed } = await inquirer.prompt<{ confirmed: boolean }>([
+    {
+      type: "confirm",
+      name: "confirmed",
+      message: "更新を実行しますか？",
+      default: true,
+    },
+  ]);
+
+  if (!confirmed) {
+    console.log(chalk.yellow("キャンセルしました。\n"));
+    return;
+  }
+
+  const templateFrontend = path.join(TEMPLATES_DIR, "frontend");
+
+  // 5a. atomic ディレクトリを作成・コピー
+  console.log(chalk.yellow("\n⚙️  適用中..."));
+
+  for (const layer of ["atoms", "molecules", "organisms", "templates"] as const) {
+    const srcLayer = path.join(templateFrontend, "src", "components", layer);
+    const dstLayer = path.join(componentsDir, layer);
+    if (await fs.pathExists(srcLayer)) {
+      await fs.copy(srcLayer, dstLayer, { overwrite: true });
+      console.log(chalk.dim(`  ✓ src/components/${layer}/ を更新`));
+    }
+  }
+
+  // 5b. カスタムコンポーネントを molecules/ に退避
+  for (const name of customComponents) {
+    const src = path.join(componentsDir, `${name}.tsx`);
+    const dst = path.join(componentsDir, "molecules", `${name}.tsx`);
+    if (await fs.pathExists(src)) {
+      await fs.move(src, dst, { overwrite: false });
+      console.log(chalk.dim(`  ⚠️  ${name}.tsx → molecules/${name}.tsx に移動（レイヤーを後で確認）`));
+    }
+  }
+
+  // 5c. molecules/index.ts にカスタムコンポーネントの export を追加
+  if (customComponents.length > 0) {
+    const moleculesIndex = path.join(componentsDir, "molecules", "index.ts");
+    let indexContent = await fs.readFile(moleculesIndex, "utf-8");
+    for (const name of customComponents) {
+      const exportLine = `export { ${name} } from "./${name}";`;
+      if (!indexContent.includes(exportLine)) {
+        indexContent += `\n${exportLine}`;
+      }
+    }
+    await fs.writeFile(moleculesIndex, indexContent, "utf-8");
+  }
+
+  // 5d. ルートの index.ts を新しい形式に更新
+  const rootIndexSrc = path.join(templateFrontend, "src", "components", "index.ts");
+  const rootIndexDst = path.join(componentsDir, "index.ts");
+  await fs.copy(rootIndexSrc, rootIndexDst, { overwrite: true });
+  console.log(chalk.dim("  ✓ src/components/index.ts を更新"));
+
+  // 5e. 旧フラットコンポーネントファイルを削除
+  for (const name of Object.keys(BUILTIN_COMPONENTS)) {
+    const oldFile = path.join(componentsDir, `${name}.tsx`);
+    if (await fs.pathExists(oldFile)) {
+      await fs.remove(oldFile);
+    }
+  }
+
+  // 5f. componentRegistry.ts を更新
+  const registrySrc = path.join(templateFrontend, "src", "utils", "componentRegistry.ts");
+  const registryDst = path.join(frontendDir, "src", "utils", "componentRegistry.ts");
+  if (await fs.pathExists(registrySrc)) {
+    await fs.copy(registrySrc, registryDst, { overwrite: true });
+    console.log(chalk.dim("  ✓ src/utils/componentRegistry.ts を更新"));
+  }
+
+  // 5g. Playground.tsx を更新
+  const playgroundSrc = path.join(templateFrontend, "src", "pages", "Playground", "Playground.tsx");
+  const playgroundDst = path.join(frontendDir, "src", "pages", "Playground", "Playground.tsx");
+  if (await fs.pathExists(playgroundSrc)) {
+    await fs.copy(playgroundSrc, playgroundDst, { overwrite: true });
+    console.log(chalk.dim("  ✓ src/pages/Playground/Playground.tsx を更新"));
+  }
+
+  // 5h. scripts/ を更新（追加のみ、上書き）
+  const scriptsSrc = path.join(templateFrontend, "scripts");
+  const scriptsDst = path.join(frontendDir, "scripts");
+  if (await fs.pathExists(scriptsSrc)) {
+    await fs.copy(scriptsSrc, scriptsDst, { overwrite: true });
+    console.log(chalk.dim("  ✓ scripts/ を更新"));
+  }
+
+  // 5i. AGENT.md にアトミックデザインセクションを追記（未追加の場合）
+  const agentMdPath = path.join(frontendDir, "AGENT.md");
+  if (await fs.pathExists(agentMdPath)) {
+    let agentContent = await fs.readFile(agentMdPath, "utf-8");
+    if (!agentContent.includes("アトミックデザイン方針")) {
+      const atomicSection = `\n## アトミックデザイン方針\n\nコンポーネントは **Atomic Design** に基づいて設計・配置する。\n\n| レイヤー | ディレクトリ | 説明 | 例 |\n|---|---|---|---|\n| **Atoms** | \`src/components/atoms/\` | それ以上分割できない最小単位 | Button, Loading, Badge, Icon |\n| **Molecules** | \`src/components/molecules/\` | Atoms を組み合わせた小さな UI 単位 | FormField, SearchBar, Card |\n| **Organisms** | \`src/components/organisms/\` | Molecules + Atoms で構成される複合 UI | DataTable, SideBar, Header |\n| **Templates** | \`src/components/templates/\` | ページの骨格・レイアウト | PageLayout |\n| **Pages** | \`src/pages/\` | 実際のページコンポーネント | Playground, Dashboard |\n\n### Figma との粒度の対応\n- **Figma の Component / Variant** → コードの \`atoms\` または \`molecules\`\n- **Figma の Frame（複合）** → コードの \`organisms\`\n- **Figma のページレイアウト** → コードの \`templates\`\n`;
+      agentContent += atomicSection;
+      await fs.writeFile(agentMdPath, agentContent, "utf-8");
+      console.log(chalk.dim("  ✓ AGENT.md にアトミックデザインセクションを追記"));
+    }
+  }
+
+  // 完了
+  console.log(chalk.green("\n✅ マイグレーション完了！\n"));
+  if (customComponents.length > 0) {
+    console.log(chalk.yellow("📌 次のステップ:"));
+    for (const name of customComponents) {
+      console.log(chalk.dim(`  - ${name}: src/components/molecules/${name}.tsx を適切なレイヤーに移動し、そのレイヤーの index.ts に export を追加してください`));
+    }
+    console.log();
+  }
+  console.log(chalk.dim("  💡 componentRegistry.ts の componentDocs に layer フィールドを追加してください。\n"));
+}
+
+// ─────────────────────────────────────────────
+// エントリポイント
+// ─────────────────────────────────────────────
+
+const args = process.argv.slice(2);
+if (args[0] === "migrate") {
+  migrate().catch((err) => {
+    console.error(chalk.red("エラーが発生しました:"), err);
+    process.exit(1);
+  });
+} else {
+  main().catch((err) => {
+    console.error(chalk.red("エラーが発生しました:"), err);
+    process.exit(1);
+  });
+}
