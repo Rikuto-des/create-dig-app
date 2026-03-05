@@ -1,6 +1,6 @@
-import { Button, DataTable, Loading, PageLayout } from "../../components";
-
-const colorShades = [50, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+import { useState, useEffect } from "react";
+import { Button, DataTable, Loading, PageLayout, SideBar } from "../../components";
+import { getComponentList, getColorTokens } from "../../utils/componentRegistry";
 
 const sampleColumns = [
   { key: "name", label: "名前" },
@@ -26,8 +26,52 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 export function Playground() {
+  const [colorTokens, setColorTokens] = useState(getColorTokens());
+  const [components, setComponents] = useState<string[]>([]);
+
+  // コンポーネントリストとカラートークンを取得
+  useEffect(() => {
+    const loadComponents = async () => {
+      const componentList = await getComponentList();
+      setComponents(componentList.map(c => c.name));
+    };
+    
+    loadComponents();
+    
+    // カラートークンの変更を監視（将来的には tailwind.config.ts の監視）
+    const checkColorTokens = () => {
+      setColorTokens(getColorTokens());
+    };
+    
+    // 5秒ごとにチェック（開発用）
+    const interval = setInterval(() => {
+      checkColorTokens();
+    }, 5000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <PageLayout title="Component Playground" description="全コンポーネントの一覧とカラートークン">
+      {/* Component Overview */}
+      <Section title="Component Overview">
+        <div className="bg-gray-50 p-4 rounded">
+          <p className="text-sm text-gray-600 mb-2">
+            検出されたコンポーネント: {components.length} 個
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {components.map((component) => (
+              <span 
+                key={component}
+                className="px-3 py-1 bg-primary-100 text-primary-800 rounded-full text-sm"
+              >
+                {component}
+              </span>
+            ))}
+          </div>
+        </div>
+      </Section>
+
       {/* Button */}
       <Section title="Button">
         <div className="space-y-4">
@@ -66,44 +110,39 @@ export function Playground() {
         </div>
       </Section>
 
+      {/* SideBar */}
+      <Section title="SideBar">
+        <div className="h-64 w-80 border border-border rounded">
+          <SideBar 
+            title="Test App" 
+            items={[
+              { label: "ホーム", path: "/" },
+              { label: "ダッシュボード", path: "/dashboard" },
+              { label: "設定", path: "/settings" },
+            ]}
+          />
+        </div>
+      </Section>
+
       {/* Color Tokens */}
       <Section title="Color Tokens">
-        <div className="space-y-4">
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-gray-600">Primary</h3>
-            <div className="flex gap-1">
-              {colorShades.map((shade) => (
-                <div key={shade} className="text-center">
-                  <div
-                    className={`h-10 w-14 rounded bg-primary-${shade}`}
-                    style={{ backgroundColor: `var(--tw-primary-${shade}, '')` }}
-                  />
-                  <span className="text-xs text-gray-500">{shade}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-          <div>
-            <h3 className="mb-2 text-sm font-semibold text-gray-600">Semantic</h3>
-            <div className="flex gap-3">
-              <div className="text-center">
-                <div className="h-10 w-14 rounded bg-success" />
-                <span className="text-xs text-gray-500">success</span>
-              </div>
-              <div className="text-center">
-                <div className="h-10 w-14 rounded bg-warning" />
-                <span className="text-xs text-gray-500">warning</span>
-              </div>
-              <div className="text-center">
-                <div className="h-10 w-14 rounded bg-error" />
-                <span className="text-xs text-gray-500">error</span>
-              </div>
-              <div className="text-center">
-                <div className="h-10 w-14 rounded bg-surface" />
-                <span className="text-xs text-gray-500">surface</span>
+        <div className="space-y-6">
+          {Object.entries(colorTokens).map(([colorName, shades]) => (
+            <div key={colorName}>
+              <h3 className="mb-2 text-sm font-semibold text-gray-600 capitalize">{colorName}</h3>
+              <div className="flex gap-1 flex-wrap">
+                {shades.map((shade) => (
+                  <div key={shade} className="text-center">
+                    <div
+                      className={`h-10 w-14 rounded border border-gray-200 bg-${colorName}-${shade}`}
+                      title={`${colorName}-${shade}`}
+                    />
+                    <span className="text-xs text-gray-500">{shade}</span>
+                  </div>
+                ))}
               </div>
             </div>
-          </div>
+          ))}
         </div>
       </Section>
 
