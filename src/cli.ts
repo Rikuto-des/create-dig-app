@@ -32,18 +32,15 @@ interface IconConfig {
 
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "templates");
 
-// 推奨スキルリスト
-const RECOMMENDED_SKILLS = [
-  "vercel-labs/agent-skills@web-design-guidelines",
-  "anthropics/skills@frontend-design",
+// 必須スキルリスト（Figma MCP 連携用）
+const ESSENTIAL_SKILLS = [
   "figma/mcp-server-guide@implement-design",
-  "wshobson/agents@tailwind-design-system",
 ];
 
-async function installRecommendedSkills() {
-  console.log(chalk.yellow("\n📦 推奨スキルをインストール中..."));
+async function installEssentialSkills() {
+  console.log(chalk.yellow("\n📦 必須スキルをインストール中..."));
   
-  for (const skill of RECOMMENDED_SKILLS) {
+  for (const skill of ESSENTIAL_SKILLS) {
     try {
       console.log(chalk.dim(`  Installing ${skill}...`));
       execSync(`npx skills add ${skill} -g -y`, { stdio: "pipe" });
@@ -53,7 +50,8 @@ async function installRecommendedSkills() {
     }
   }
   
-  console.log(chalk.green("\n✅ スキルインストール完了\n"));
+  console.log(chalk.green("\n✅ 必須スキルインストール完了"));
+  console.log(chalk.dim("  💡 その他のスキルは AI が必要に応じて自動で呼び出します\n"));
 }
 
 async function main() {
@@ -165,8 +163,8 @@ async function main() {
   // 5. package.json にアイコンライブラリの依存を追加
   await addIconDependency(frontendTargetDir, answers.iconLibrary, iconConfig);
 
-  // 6. 推奨スキルをインストール
-  await installRecommendedSkills();
+  // 6. 必須スキルをインストール
+  await installEssentialSkills();
 
   console.log(chalk.green(`\n✅ ${answers.projectName} を作成しました！\n`));
   console.log(chalk.dim("  プロジェクト構成:"));
