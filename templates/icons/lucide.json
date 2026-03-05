@@ -1,0 +1,6 @@
+{
+  "package": "lucide-react",
+  "libraryName": "lucide-react",
+  "importExample": "インポート例: `import { Search, Plus, Trash2 } from \"lucide-react\"`",
+  "ruleText": "## アイコン\n- アイコンは `lucide-react` を使用する\n- インポート例: `import { Search, Plus, Trash2 } from \"lucide-react\"`\n- サイズは Tailwind クラスで指定: `className=\"w-5 h-5\"`\n- カラーは `text-*` クラスで指定: `className=\"text-primary-500\"`\n- 他のアイコンライブラリは使用禁止"
+}

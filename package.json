@@ -1,0 +1,30 @@
+{
+  "name": "create-dig-app",
+  "version": "1.0.0",
+  "description": "AI デザインワークフロー対応の React + Tailwind プロジェクトを対話式で作成する CLI ツール",
+  "type": "module",
+  "bin": {
+    "create-dig-app": "./bin/cli.js"
+  },
+  "files": [
+    "bin",
+    "templates"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "start": "node bin/cli.js"
+  },
+  "dependencies": {
+    "chalk": "^5.3.0",
+    "fs-extra": "^11.2.0",
+    "inquirer": "^9.2.0"
+  },
+  "devDependencies": {
+    "@types/fs-extra": "^11.0.4",
+    "@types/inquirer": "^9.0.7",
+    "@types/node": "^20.11.0",
+    "typescript": "~5.7.0"
+  },
+  "keywords": ["react", "vite", "tailwind", "design", "ai", "template"],
+  "license": "MIT"
+}

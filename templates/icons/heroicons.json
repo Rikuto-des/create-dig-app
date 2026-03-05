@@ -1,0 +1,6 @@
+{
+  "package": "@heroicons/react",
+  "libraryName": "@heroicons/react",
+  "importExample": "インポート例: `import { MagnifyingGlassIcon } from \"@heroicons/react/24/outline\"`",
+  "ruleText": "## アイコン\n- アイコンは `@heroicons/react` を使用する\n- outline 版を標準で使い、強調時のみ solid 版を使う\n- インポート例: `import { MagnifyingGlassIcon } from \"@heroicons/react/24/outline\"`\n- サイズは Tailwind クラスで指定: `className=\"w-5 h-5\"`\n- カラーは `text-*` クラスで指定: `className=\"text-primary-500\"`\n- 他のアイコンライブラリは使用禁止"
+}
