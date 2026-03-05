@@ -1,6 +1,8 @@
 /// <reference types="vite/client" />
 // コンポーネントの動的インポートと登録
 
+export type AtomicLayer = "atoms" | "molecules" | "organisms" | "templates";
+
 export interface PropInfo {
   name: string;
   type: string;
@@ -11,6 +13,7 @@ export interface PropInfo {
 
 export interface ComponentInfo {
   name: string;
+  layer: AtomicLayer;
   description?: string;
   props?: PropInfo[];
 }
@@ -19,18 +22,36 @@ export interface ColorTokens {
   [colorName: string]: number[];
 }
 
-// Vite の glob import でコンポーネントを自動検出
-// components/*.tsx を自動スキャン
-const componentModules = import.meta.glob("../components/*.tsx", { eager: true });
+// Vite の glob import で各レイヤーのコンポーネントを自動検出
+const atomModules      = import.meta.glob("../components/atoms/*.tsx",      { eager: true });
+const moleculeModules  = import.meta.glob("../components/molecules/*.tsx",  { eager: true });
+const organismModules  = import.meta.glob("../components/organisms/*.tsx",  { eager: true });
+const templateModules  = import.meta.glob("../components/templates/*.tsx",  { eager: true });
+
+function extractNames(modules: Record<string, unknown>, layer: AtomicLayer): ComponentInfo[] {
+  return Object.keys(modules)
+    .map((path) => {
+      const name = path.split("/").pop()?.replace(".tsx", "") ?? "";
+      return { name, layer };
+    })
+    .filter((c) => c.name !== "index" && c.name !== "");
+}
 
 export function getComponentList(): ComponentInfo[] {
-  return Object.keys(componentModules)
-    .map((path) => {
-      const name = path.replace("../components/", "").replace(".tsx", "");
-      return { name };
-    })
-    .filter((c) => c.name !== "index");
+  return [
+    ...extractNames(atomModules,     "atoms"),
+    ...extractNames(moleculeModules, "molecules"),
+    ...extractNames(organismModules, "organisms"),
+    ...extractNames(templateModules, "templates"),
+  ];
 }
+
+export const LAYER_LABELS: Record<AtomicLayer, { label: string; color: string; description: string }> = {
+  atoms:     { label: "Atoms",     color: "bg-blue-100 text-blue-800",   description: "最小単位。単一の機能を持つ（Button, Loading, Icon, Badge）" },
+  molecules: { label: "Molecules", color: "bg-green-100 text-green-800", description: "Atomsの組み合わせ（FormField, SearchBar, Card）" },
+  organisms: { label: "Organisms", color: "bg-orange-100 text-orange-800", description: "Molecules+Atomsの複合体（DataTable, SideBar, Header）" },
+  templates: { label: "Templates", color: "bg-purple-100 text-purple-800", description: "ページ骨格（PageLayout）" },
+};
 
 // CSS Variables からリアルタイムでカラートークンを取得
 export function getColorTokens(): ColorTokens {
@@ -66,10 +87,12 @@ export function getColorTokens(): ColorTokens {
   return tokens;
 }
 
-// コンポーネントの Props ドキュメント（手動定義 + 自動補完）
+// コンポーネントの Props ドキュメント（手動定義）
+// 新規コンポーネントを作ったらここに追記してください
 export const componentDocs: Record<string, ComponentInfo> = {
   Button: {
     name: "Button",
+    layer: "atoms",
     description: "汎用ボタン。variant と size で見た目を制御する。",
     props: [
       { name: "variant", type: '"primary" | "secondary" | "danger" | "ghost"', required: false, defaultValue: '"primary"', description: "ボタンの見た目" },
@@ -78,8 +101,18 @@ export const componentDocs: Record<string, ComponentInfo> = {
       { name: "onClick", type: "() => void", required: false, description: "クリック時のコールバック" },
     ],
   },
+  Loading: {
+    name: "Loading",
+    layer: "atoms",
+    description: "ローディングスピナー。",
+    props: [
+      { name: "size", type: '"sm" | "md" | "lg"', required: false, defaultValue: '"md"', description: "サイズ" },
+      { name: "label", type: "string", required: false, description: "スクリーンリーダー向けラベル" },
+    ],
+  },
   DataTable: {
     name: "DataTable",
+    layer: "organisms",
     description: "汎用テーブル。columns と rows でデータを表示する。",
     props: [
       { name: "columns", type: "Column[]", required: true, description: "列定義（key, label, width?, align?）" },
@@ -87,29 +120,23 @@ export const componentDocs: Record<string, ComponentInfo> = {
       { name: "onRowClick", type: "(row) => void", required: false, description: "行クリック時のコールバック" },
     ],
   },
-  Loading: {
-    name: "Loading",
-    description: "ローディングスピナー。",
+  SideBar: {
+    name: "SideBar",
+    layer: "organisms",
+    description: "左サイドバーナビゲーション。",
     props: [
-      { name: "size", type: '"sm" | "md" | "lg"', required: false, defaultValue: '"md"', description: "サイズ" },
-      { name: "label", type: "string", required: false, description: "スクリーンリーダー向けラベル" },
+      { name: "title", type: "string", required: true, description: "アプリ名" },
+      { name: "items", type: "{ label: string; path: string }[]", required: true, description: "ナビゲーション項目" },
     ],
   },
   PageLayout: {
     name: "PageLayout",
+    layer: "templates",
     description: "ページのメインコンテンツ領域。SideBar と組み合わせて使う。",
     props: [
       { name: "title", type: "string", required: true, description: "ページタイトル" },
       { name: "description", type: "string", required: false, description: "サブタイトル" },
       { name: "children", type: "React.ReactNode", required: true, description: "コンテンツ" },
-    ],
-  },
-  SideBar: {
-    name: "SideBar",
-    description: "左サイドバーナビゲーション。",
-    props: [
-      { name: "title", type: "string", required: true, description: "アプリ名" },
-      { name: "items", type: "{ label: string; path: string }[]", required: true, description: "ナビゲーション項目" },
     ],
   },
 };

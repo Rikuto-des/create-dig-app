@@ -1,6 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button, DataTable, Loading, PageLayout, SideBar } from "../../components";
-import { getComponentList, getColorTokens, componentDocs, type ComponentInfo } from "../../utils/componentRegistry";
+import {
+  getComponentList, getColorTokens, componentDocs, LAYER_LABELS,
+  type ComponentInfo, type AtomicLayer,
+} from "../../utils/componentRegistry";
 
 const sampleColumns = [
   { key: "name", label: "名前" },
@@ -61,53 +64,66 @@ function PropsTable({ component }: { component: ComponentInfo }) {
 
 export function Playground() {
   const [colorTokens, setColorTokens] = useState(getColorTokens());
-  const [detectedComponents, setDetectedComponents] = useState<string[]>([]);
+  const [detectedComponents, setDetectedComponents] = useState<ComponentInfo[]>([]);
   const [selectedComponent, setSelectedComponent] = useState<string | null>(null);
 
   useEffect(() => {
-    const list = getComponentList();
-    setDetectedComponents(list.map(c => c.name));
-
-    const interval = setInterval(() => {
-      setColorTokens(getColorTokens());
-    }, 5000);
-
+    setDetectedComponents(getComponentList());
+    const interval = setInterval(() => setColorTokens(getColorTokens()), 5000);
     return () => clearInterval(interval);
   }, []);
 
+  const layers: AtomicLayer[] = ["atoms", "molecules", "organisms", "templates"];
+
   return (
     <PageLayout title="Component Playground" description="全コンポーネントの一覧とカラートークン">
-      {/* Component Overview */}
+      {/* Component Overview — Atomic Design レイヤー別 */}
       <Section title="Component Overview">
-        <div className="bg-gray-50 p-4 rounded">
-          <p className="text-sm text-gray-600 mb-2">
-            検出されたコンポーネント: {detectedComponents.length} 個
-          </p>
-          <div className="flex flex-wrap gap-2">
-            {detectedComponents.map((name) => (
-              <button
-                key={name}
-                onClick={() => setSelectedComponent(selectedComponent === name ? null : name)}
-                className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-                  selectedComponent === name
-                    ? "bg-primary-500 text-white border-primary-500"
-                    : "bg-primary-100 text-primary-800 border-primary-200 hover:bg-primary-200"
-                }`}
-              >
-                {name}
-              </button>
-            ))}
-          </div>
-          {selectedComponent && componentDocs[selectedComponent] && (
-            <div className="mt-4">
-              <p className="text-sm text-gray-700 mb-2">
-                <span className="font-semibold">{selectedComponent}</span>:{" "}
-                {componentDocs[selectedComponent].description}
-              </p>
-              <PropsTable component={componentDocs[selectedComponent]} />
-            </div>
-          )}
+        <div className="space-y-4">
+          {layers.map((layer) => {
+            const info = LAYER_LABELS[layer];
+            const comps = detectedComponents.filter(c => c.layer === layer);
+            return (
+              <div key={layer} className="rounded border border-gray-200 p-3">
+                <div className="flex items-center gap-2 mb-2">
+                  <span className={`px-2 py-0.5 rounded text-xs font-bold ${info.color}`}>{info.label}</span>
+                  <span className="text-xs text-gray-500">{info.description}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {comps.length === 0 ? (
+                    <span className="text-xs text-gray-400 italic">まだコンポーネントがありません</span>
+                  ) : (
+                    comps.map((c) => (
+                      <button
+                        key={c.name}
+                        onClick={() => setSelectedComponent(selectedComponent === c.name ? null : c.name)}
+                        className={`px-3 py-1 rounded-full text-sm border transition-colors ${
+                          selectedComponent === c.name
+                            ? "bg-primary-500 text-white border-primary-500"
+                            : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+                        }`}
+                      >
+                        {c.name}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
+        {selectedComponent && componentDocs[selectedComponent] && (
+          <div className="mt-4 rounded border border-primary-200 bg-primary-50 p-4">
+            <p className="text-sm text-gray-700 mb-2">
+              <span className="font-semibold">{selectedComponent}</span>
+              <span className={`ml-2 px-1.5 py-0.5 rounded text-xs ${LAYER_LABELS[componentDocs[selectedComponent].layer].color}`}>
+                {LAYER_LABELS[componentDocs[selectedComponent].layer].label}
+              </span>
+              <span className="ml-2 text-gray-500">{componentDocs[selectedComponent].description}</span>
+            </p>
+            <PropsTable component={componentDocs[selectedComponent]} />
+          </div>
+        )}
       </Section>
 
       {/* Button */}
