@@ -4,9 +4,31 @@ import path from "path";
 import { fileURLToPath } from "url";
 import fs from "fs-extra";
 import chalk from "chalk";
+import { execSync } from "child_process";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const TEMPLATES_DIR = path.resolve(__dirname, "..", "templates");
+// 推奨スキルリスト
+const RECOMMENDED_SKILLS = [
+    "vercel-labs/agent-skills@web-design-guidelines",
+    "anthropics/skills@frontend-design",
+    "figma/mcp-server-guide@implement-design",
+    "wshobson/agents@tailwind-design-system",
+];
+async function installRecommendedSkills() {
+    console.log(chalk.yellow("\n📦 推奨スキルをインストール中..."));
+    for (const skill of RECOMMENDED_SKILLS) {
+        try {
+            console.log(chalk.dim(`  Installing ${skill}...`));
+            execSync(`npx skills add ${skill} -g -y`, { stdio: "pipe" });
+            console.log(chalk.green(`  ✓ ${skill}`));
+        }
+        catch (error) {
+            console.log(chalk.red(`  ✗ ${skill} - スキップします`));
+        }
+    }
+    console.log(chalk.green("\n✅ スキルインストール完了\n"));
+}
 async function main() {
     console.log(chalk.cyan("\n✨ create-dig-app v1.0.0\n"));
     // --yes フラグで非対話モード（テスト用）
@@ -103,6 +125,8 @@ async function main() {
     await replacePlaceholders(frontendTargetDir, answers, iconConfig);
     // 5. package.json にアイコンライブラリの依存を追加
     await addIconDependency(frontendTargetDir, answers.iconLibrary, iconConfig);
+    // 6. 推奨スキルをインストール
+    await installRecommendedSkills();
     console.log(chalk.green(`\n✅ ${answers.projectName} を作成しました！\n`));
     console.log(chalk.dim("  プロジェクト構成:"));
     console.log(chalk.dim(`    ${answers.projectName}/frontend/  # デザイナー作業領域`));
